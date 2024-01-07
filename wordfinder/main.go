@@ -53,20 +53,32 @@ func FindWordInAllFiles(word string, pattern string) []FindInfo {
 		return findInfos
 	}
 	
+	ch := make(chan FindInfo)
+	cnt := len(filenames)
+	recvCnt := 0
+
 	for _, filename := range filenames {
-		findInfos = append(findInfos, FindWordInFile(word, filename))
+		go FindWordInFile(word, filename, ch)
+	}
+
+	for fileInfo := range ch {
+		findInfos = append(findInfos, fileInfo)
+		recvCnt++
+		if cnt == recvCnt {
+			break
+		}
 	}
 	return findInfos
 }
 
 // Find word in file and return FindInfo
-func FindWordInFile(word string, filename string) FindInfo {
+func FindWordInFile(word string, filename string, ch chan FindInfo) {
 	findInfo := FindInfo{filename, []LineInfo{}}
 
 	file, err := os.Open(filename)
 	if (err != nil) {
 		fmt.Println("Can not find file: ", filename)
-		return findInfo
+		ch <- findInfo
 	}
 	// Close file handle before function ends
 	defer file.Close()
@@ -82,7 +94,7 @@ func FindWordInFile(word string, filename string) FindInfo {
 		}
 		lineNo++
 	}
-	return findInfo
+	ch <- findInfo
 }
 
 func PrintResult(result []FindInfo) {
