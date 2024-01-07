@@ -1,36 +1,112 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+type LineInfo struct {
+	lineNo int
+	line string
+}
+
+type FindInfo struct {
+	filename string
+	lines []LineInfo
+}
 
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Println("Error: Not enough arguments")
-		fmt.Println("Usage: wordfinder [target word] ...[target files or patterns]")
+		fmt.Println("Usage: wordfinder king '*.txt'")
 		return
 	}
 
 	word := os.Args[1]
-	files := os.Args[2:]
+	patterns := os.Args[2:]
+	result := []FindInfo{}
 
-	fmt.Println("Target word: ", word)
-	fmt.Println(files)
-	GetFiles(files)
+	fmt.Println("Target Word: ", word)
+
+	for _, pattern := range patterns {
+		result = append(result, FindWordInAllFiles(word, pattern)...)
+	}
+
+	PrintResult(result)
 }
 
-func GetFiles(files []string) {
-	for _, path := range files {
-		matches, err := filepath.Glob(path)
-		if err != nil {
-			fmt.Println("Error occurs during finding files", path)
-			return
+func GetMatchingFiles(pattern string) ([]string, error){
+	return filepath.Glob(pattern)
+}
+
+// Find word in all matching files
+func FindWordInAllFiles(word string, pattern string) []FindInfo {
+	findInfos := []FindInfo{}
+
+	// Find matches with file path
+	filenames, err := GetMatchingFiles(pattern)
+	if err != nil {
+		fmt.Println("Error occurs during finding files matching", pattern)
+		return findInfos
+	}
+	
+	for _, filename := range filenames {
+		findInfos = append(findInfos, FindWordInFile(word, filename))
+	}
+	return findInfos
+}
+
+// Find word in file and return FindInfo
+func FindWordInFile(word string, filename string) FindInfo {
+	findInfo := FindInfo{filename, []LineInfo{}}
+
+	file, err := os.Open(filename)
+	if (err != nil) {
+		fmt.Println("Can not find file: ", filename)
+		return findInfo
+	}
+	// Close file handle before function ends
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	lineNo := 1
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Search word line by line
+		if strings.Contains(line, word) {
+			findInfo.lines = append(findInfo.lines, LineInfo{lineNo, line})
 		}
-		fmt.Printf("Filelist for %s\n", path)
-		for _, match := range matches {
-			fmt.Println(match)
+		lineNo++
+	}
+	return findInfo
+}
+
+func PrintResult(result []FindInfo) {
+	numTotalMatchingLines := 0
+
+	for _, findInfo := range result {
+		numTotalMatchingLines += len(findInfo.lines)
+	}
+	
+	fmt.Println("========================================")
+	fmt.Println()
+	fmt.Println("Total # of matching lines: ", numTotalMatchingLines)
+	fmt.Println()
+	fmt.Println("========================================")
+	fmt.Println()
+	for _, findInfo := range result {
+		fmt.Println(findInfo.filename)
+		fmt.Println("# of matching lines: ", len(findInfo.lines))
+		fmt.Println()
+		fmt.Println("----------------------------------------")
+		for _, lineInfo := range findInfo.lines {
+			fmt.Println("\t", lineInfo.lineNo, "\t", lineInfo.line)
 		}
+		fmt.Println("----------------------------------------")
+		fmt.Println()
 	}
 }
